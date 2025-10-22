@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard Semanal 2025</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #fff; color: #222; margin: 0; padding: 20px; }
+    h1 { text-align: center; color: #b8860b; }
+    .container { display: flex; flex-direction: column; gap: 20px; }
+    .controls { display: flex; gap: 10px; justify-content: center; }
+    select, input, button { padding: 8px; font-size: 14px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .chip { padding: 8px 12px; border-radius: 20px; background: #f0f0f0; cursor: pointer; }
+    .chip.active { background: #ffd700; color: #000; }
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .day { border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #fafafa; }
+    .day h3 { margin-top: 0; font-size: 16px; color: #b8860b; }
+    .day ul { list-style: none; padding: 0; margin: 0; }
+    .day li { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .day li button { border: none; background: none; color: red; cursor: pointer; }
+    .add-action { display: flex; gap: 4px; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f9f9f9; color: #b8860b; }
+  </style>
+</head>
+<body>
+  <h1>Dashboard Semanal 2025</h1>
+  <div class="container">
+    <div class="controls">
+      <select id="semana"></select>
+      <select id="diretoria">
+        <option value="Luis">Diretoria Luis</option>
+        <option value="Ferrari">Diretoria Ferrari</option>
+        <option value="Marketing">Diretoria Marketing</option>
+      </select>
+    </div>
+
+    <div class="chips" id="empreendimentos"></div>
+
+    <div id="calendario"></div>
+
+    <div>
+      <h2>Quadro Resumo — Semana</h2>
+      <table id="resumo">
+        <thead>
+          <tr>
+            <th>Empreendimento</th>
+            <th>Segunda</th>
+            <th>Terça</th>
+            <th>Quarta</th>
+            <th>Quinta</th>
+            <th>Sexta</th>
+            <th>Sábado</th>
+            <th>Domingo</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const EMPREENDIMENTOS = ['Quaddra Lorena', 'Zip Brooklin', 'Camino', 'Jeronimo 155', 'UAPÉ', 'Esquina Jardyn', 'Organy'];
+    const dias = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+    const STORAGE = 'acoes_dashboard_v2';
+    let dados = JSON.parse(localStorage.getItem(STORAGE) || '{}');
+
+    const selSemana = document.getElementById('semana');
+    const selDiretoria = document.getElementById('diretoria');
+    const chips = document.getElementById('empreendimentos');
+    const calendario = document.getElementById('calendario');
+    const resumo = document.getElementById('resumo').querySelector('tbody');
+
+    function gerarSemanas() {
+      const inicio = new Date();
+      const fim = new Date('2025-12-31');
+      let atual = new Date(inicio);
+      let cont = 1;
+      while (atual < fim) {
+        const prox = new Date(atual);
+        prox.setDate(prox.getDate() + 6);
+        const opt = document.createElement('option');
+        opt.value = 'w' + cont;
+        opt.textContent = `${cont}ª Semana (${atual.toLocaleDateString()} - ${prox.toLocaleDateString()})`;
+        selSemana.appendChild(opt);
+        atual.setDate(atual.getDate() + 7);
+        cont++;
+      }
+    }
+
+    function renderChips() {
+      chips.innerHTML = '';
+      EMPREENDIMENTOS.forEach((emp, i) => {
+        const c = document.createElement('div');
+        c.textContent = emp;
+        c.className = 'chip' + (i === 0 ? ' active' : '');
+        c.onclick = () => {
+          document.querySelectorAll('.chip').forEach(ch => ch.classList.remove('active'));
+          c.classList.add('active');
+          renderCalendario();
+        };
+        chips.appendChild(c);
+      });
+    }
+
+    function renderCalendario() {
+      calendario.innerHTML = '';
+      const emp = document.querySelector('.chip.active').textContent;
+      const sem = selSemana.value;
+      const dir = selDiretoria.value;
+      if (!dados[dir]) dados[dir] = {};
+      if (!dados[dir][sem]) dados[dir][sem] = {};
+      if (!dados[dir][sem][emp]) dados[dir][sem][emp] = {};
+
+      const grid = document.createElement('div');
+      grid.className = 'calendar';
+      dias.forEach((dia, i) => {
+        const day = document.createElement('div');
+        day.className = 'day';
+        const titulo = document.createElement('h3');
+        titulo.textContent = dia;
+        day.appendChild(titulo);
+        const lista = document.createElement('ul');
+        (dados[dir][sem][emp][i] || []).forEach((acao, idx) => {
+          const li = document.createElement('li');
+          li.innerHTML = `${acao} <button>x</button>`;
+          li.querySelector('button').onclick = () => {
+            dados[dir][sem][emp][i].splice(idx,1);
+            salvar();
+            renderCalendario();
+          };
+          lista.appendChild(li);
+        });
+        const add = document.createElement('div');
+        add.className = 'add-action';
+        add.innerHTML = `<input placeholder='Nova ação'><button>Adicionar</button>`;
+        const input = add.querySelector('input');
+        add.querySelector('button').onclick = () => {
+          const valor = input.value.trim();
+          if (!valor) return;
+          if (!dados[dir][sem][emp][i]) dados[dir][sem][emp][i] = [];
+          dados[dir][sem][emp][i].push(valor);
+          input.value = '';
+          salvar();
+          renderCalendario();
+        };
+        day.appendChild(lista);
+        day.appendChild(add);
+        grid.appendChild(day);
+      });
+      calendario.appendChild(grid);
+      renderResumo();
+    }
+
+    function renderResumo() {
+      const sem = selSemana.value;
+      const dir = selDiretoria.value;
+      resumo.innerHTML = '';
+      EMPREENDIMENTOS.forEach(emp => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${emp}</td>`;
+        for (let i = 0; i < 7; i++) {
+          const conteudo = (dados[dir]?.[sem]?.[emp]?.[i] || []).join(', ');
+          tr.innerHTML += `<td>${conteudo}</td>`;
+        }
+        resumo.appendChild(tr);
+      });
+    }
+
+    function salvar() {
+      localStorage.setItem(STORAGE, JSON.stringify(dados));
+    }
+
+    selSemana.onchange = selDiretoria.onchange = renderCalendario;
+
+    gerarSemanas();
+    renderChips();
+    selSemana.selectedIndex = 0;
+    renderCalendario();
+  </script>
+</body>
+</html>
